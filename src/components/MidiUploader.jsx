@@ -11,6 +11,7 @@ export default function MidiUploader() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [bassMax, setBassMax] = useState(59)
+  const [showHand, setShowHand] = useState(false)
 
   const rawNotesRef = useRef([])
   const groupsRef = useRef([])
@@ -187,9 +188,28 @@ export default function MidiUploader() {
           {/* Fretboard */}
           {sol && (
             <>
+              <div style={{ marginBottom: 12 }}>
+                <button
+                  onClick={() => setShowHand(h => !h)}
+                  style={{
+                    background: showHand ? '#7c3aed' : '#1e293b',
+                    border: `2px solid ${showHand ? '#c084fc' : '#334155'}`,
+                    color: '#fff',
+                    borderRadius: 8,
+                    padding: '6px 16px',
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {showHand ? '✋ Hand On' : '✋ Hand Off'}
+                </button>
+              </div>
+
               <Fretboard
                 activeNotes={currentGroup ? currentGroup.notes : []}
                 capoFret={sol.capoFret}
+                showHand={showHand}
               />
 
               {/* Transport */}
