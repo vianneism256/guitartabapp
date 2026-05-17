@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { parseMidi } from '../lib/midiParser'
-import { generateSolutions, generateThinStringSolution } from '../lib/fingeringEngine'
+import { generateSolutions, generateThinStringSolution, generateFingerstyleAnchorSolution } from '../lib/fingeringEngine'
 import { loadInstrument, scheduleNotes, stopAll, getCurrentTime } from '../lib/guitarPlayer'
 import Fretboard from './Fretboard'
 
@@ -37,7 +37,8 @@ export default function MidiUploader() {
 
     const sols = generateSolutions(allNotes, 3)
     const trebleSol = generateThinStringSolution(allNotes, sols)
-    setSolutions([...sols, trebleSol])
+    const fingerstyleSol = generateFingerstyleAnchorSolution(allNotes)
+    setSolutions([...sols, trebleSol, fingerstyleSol])
     setActiveSolution(0)
     setCurrentIndex(0)
     groupsRef.current = sols[0]?.groups ?? []
@@ -132,11 +133,11 @@ export default function MidiUploader() {
                 onClick={() => handleSelectSolution(i)}
                 style={{
                   background: activeSolution === i
-                    ? (s.isTrebleFocus ? '#7c3aed' : '#2563eb')
+                    ? (s.isFingerstyleAnchor ? '#065f46' : s.isTrebleFocus ? '#7c3aed' : '#2563eb')
                     : '#1e293b',
                   border: activeSolution === i
-                    ? `2px solid ${s.isTrebleFocus ? '#c084fc' : '#60a5fa'}`
-                    : `2px solid ${s.isTrebleFocus ? '#6d28d9' : '#334155'}`,
+                    ? `2px solid ${s.isFingerstyleAnchor ? '#34d399' : s.isTrebleFocus ? '#c084fc' : '#60a5fa'}`
+                    : `2px solid ${s.isFingerstyleAnchor ? '#064e3b' : s.isTrebleFocus ? '#6d28d9' : '#334155'}`,
                   borderRadius: 10,
                   padding: '12px 18px',
                   color: '#fff',
@@ -147,13 +148,13 @@ export default function MidiUploader() {
                 }}
               >
                 <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>
-                  {s.isTrebleFocus ? '✦ Treble Focus' : `Option ${i + 1}`}
+                  {s.isFingerstyleAnchor ? '◆ Fingerstyle' : s.isTrebleFocus ? '✦ Treble Focus' : `Option ${i + 1}`}
                 </div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
                   {s.label}
                 </div>
                 <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 'bold' }}>
-                  {s.score}% reachable
+                  {s.score}% {s.isFingerstyleAnchor ? 'no-shift' : 'reachable'}
                 </div>
                 {s.capoFret > 0 && (
                   <div style={{ fontSize: 11, color: '#facc15', marginTop: 4 }}>

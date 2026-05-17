@@ -2,6 +2,161 @@ import { getNoteOptions, convertToTab, groupNotesByTime } from './tabConverter'
 
 const HAND_SPAN = 4 // fingers comfortably cover 4 frets
 
+// ─── Card 5: Fingerstyle Anchor engine ───────────────────────────────────────
+
+const FINGERS = ['index', 'middle', 'ring', 'pinky']
+
+function groupRawNotesByTime(rawNotes, threshold = 0.25) {
+  const sorted = [...rawNotes].sort((a, b) => a.time - b.time)
+  const groups = []
+  let current = []
+  let currentTime = null
+
+  for (const note of sorted) {
+    if (currentTime === null || Math.abs(note.time - currentTime) <= threshold) {
+      current.push(note)
+      currentTime = currentTime ?? note.time
+    } else {
+      groups.push({ time: currentTime, notes: current })
+      current = [note]
+      currentTime = note.time
+    }
+  }
+  if (current.length > 0) groups.push({ time: currentTime, notes: current })
+  return groups
+}
+
+function bassAnchorFret(groupNotes, capoFret) {
+  const bassNotes = groupNotes.filter(n => n.midi < 60)
+  if (bassNotes.length === 0) return null
+  const lowest = [...bassNotes].sort((a, b) => a.midi - b.midi)[0]
+  const opts = getNoteOptions(lowest.midi, capoFret).filter(o => ['E', 'A', 'D'].includes(o.string))
+  if (opts.length === 0) return null
+  return Math.min(...opts.map(o => o.fret))
+}
+
+function findBestAnchor(frets) {
+  let best = frets[0]
+  let bestCount = 0
+  for (const candidate of frets) {
+    const count = frets.filter(f => f >= candidate && f <= candidate + HAND_SPAN - 1).length
+    if (count > bestCount) { bestCount = count; best = candidate }
+  }
+  return best
+}
+
+function computeAnchors(rawGroups, capoFret) {
+  const LOOKAHEAD = 4
+  const requiredFrets = rawGroups.map(g => bassAnchorFret(g.notes, capoFret))
+
+  let anchor = requiredFrets.find(f => f !== null) ?? capoFret
+  return requiredFrets.map((req, i) => {
+    if (req !== null) {
+      const inWindow = req >= anchor && req <= anchor + HAND_SPAN - 1
+      if (!inWindow) {
+        const upcoming = requiredFrets.slice(i, i + LOOKAHEAD).filter(f => f !== null)
+        anchor = upcoming.length > 0 ? findBestAnchor(upcoming) : req
+      }
+    }
+    return anchor
+  })
+}
+
+function assignGroupFingers(groupNotes, anchor, capoFret) {
+  const occupiedFingers = new Set()
+  const usedStrings = new Set()
+  const result = []
+
+  const sorted = [...groupNotes].sort((a, b) => {
+    const roleA = a.midi < 60 ? 0 : 1
+    const roleB = b.midi < 60 ? 0 : 1
+    if (roleA !== roleB) return roleA - roleB
+    return a.midi - b.midi
+  })
+
+  for (const note of sorted) {
+    const isBass = note.midi < 60
+    const preferStrings = isBass ? ['E', 'A', 'D'] : ['e', 'B', 'G', 'D']
+
+    let options = getNoteOptions(note.midi, capoFret)
+    let filtered = options.filter(o => preferStrings.includes(o.string) && !usedStrings.has(o.string))
+    if (filtered.length === 0) filtered = options.filter(o => !usedStrings.has(o.string))
+    if (filtered.length === 0) filtered = options
+
+    filtered.sort((a, b) => {
+      const aOff = Math.max(0, a.fret - anchor)
+      const bOff = Math.max(0, b.fret - anchor)
+      return aOff - bOff
+    })
+
+    let picked = null
+    let finger = null
+
+    for (const opt of filtered) {
+      const offset = Math.max(0, Math.min(3, opt.fret - anchor))
+      const candidateFinger = FINGERS[offset]
+      if (!occupiedFingers.has(candidateFinger)) {
+        picked = opt
+        finger = candidateFinger
+        break
+      }
+    }
+
+    if (!picked) {
+      picked = filtered[0] ?? options[0]
+      finger = FINGERS.find(f => !occupiedFingers.has(f)) ?? 'pinky'
+    }
+
+    occupiedFingers.add(finger)
+    usedStrings.add(picked.string)
+
+    result.push({
+      ...note,
+      string: picked.string,
+      fret: picked.fret,
+      finger,
+      role: isBass ? 'bass' : 'melody',
+    })
+  }
+
+  return result
+}
+
+export function generateFingerstyleAnchorSolution(rawNotes) {
+  const capoFret = 0
+
+  const rawGroups = groupRawNotesByTime(rawNotes)
+  const anchors = computeAnchors(rawGroups, capoFret)
+
+  let shifts = 0
+  for (let i = 1; i < anchors.length; i++) {
+    if (anchors[i] !== anchors[i - 1]) shifts++
+  }
+  const score = anchors.length > 1
+    ? Math.round((1 - shifts / (anchors.length - 1)) * 100)
+    : 100
+
+  const groups = rawGroups.map((group, i) => ({
+    time: group.time,
+    notes: assignGroupFingers(group.notes, anchors[i], capoFret),
+  }))
+
+  const tabNotes = groups.flatMap(g => g.notes)
+
+  return {
+    id: 4,
+    capoFret,
+    handAnchor: anchors[0] ?? 0,
+    score,
+    label: 'Fingerstyle Anchor',
+    tabNotes,
+    groups,
+    isFingerstyleAnchor: true,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Idea 3: find the 4-fret window where most notes cluster naturally
 export function suggestCapo(rawNotes) {
   // Build a histogram: for each note, count its lowest-fret guitar option
