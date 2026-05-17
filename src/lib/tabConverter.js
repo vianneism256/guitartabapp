@@ -10,9 +10,9 @@ export const STRING_MIDI = {
 
 const STRINGS = ['e', 'B', 'G', 'D', 'A', 'E']
 
-export function splitTracks(notes) {
-  const bass = notes.filter(n => n.midi < 60)
-  const melody = notes.filter(n => n.midi >= 60)
+export function splitTracks(notes, bassMax = 59) {
+  const bass = notes.filter(n => n.midi <= bassMax)
+  const melody = notes.filter(n => n.midi > bassMax)
   return { bass, melody }
 }
 
@@ -43,8 +43,8 @@ function bestOption(options, currentFret, preferStrings = null) {
 // capoFret: absolute fret where capo is placed (notes below this are unreachable)
 // handAnchor: fret position relative to capo where index finger sits (0 = at the capo)
 // thinStringBias: when true, melody notes strongly prefer e, B, G strings
-export function convertToTab(notes, capoFret = 0, handAnchor = 0, thinStringBias = false) {
-  const { bass, melody } = splitTracks(notes)
+export function convertToTab(notes, capoFret = 0, handAnchor = 0, thinStringBias = false, bassMax = 59) {
+  const { bass, melody } = splitTracks(notes, bassMax)
 
   const allNotes = [
     ...bass.map(n => ({ ...n, role: 'bass' })),

@@ -10,6 +10,7 @@ export default function MidiUploader() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [bassMax, setBassMax] = useState(59)
 
   const rawNotesRef = useRef([])
   const groupsRef = useRef([])
@@ -35,9 +36,9 @@ export default function MidiUploader() {
     allNotes.sort((a, b) => a.time - b.time)
     rawNotesRef.current = allNotes
 
-    const sols = generateSolutions(allNotes, 3)
-    const trebleSol = generateThinStringSolution(allNotes, sols)
-    const fingerstyleSol = generateFingerstyleAnchorSolution(allNotes)
+    const sols = generateSolutions(allNotes, 3, bassMax)
+    const trebleSol = generateThinStringSolution(allNotes, sols, bassMax)
+    const fingerstyleSol = generateFingerstyleAnchorSolution(allNotes, bassMax)
     setSolutions([...sols, trebleSol, fingerstyleSol])
     setActiveSolution(0)
     setCurrentIndex(0)
@@ -116,7 +117,25 @@ export default function MidiUploader() {
   return (
     <div style={{ padding: 40, fontFamily: 'monospace', color: '#fff', background: '#111', minHeight: '100vh' }}>
       <h2>Guitar Tab Visualizer</h2>
-      <input type="file" accept=".mid,.midi" onChange={handleFile} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input type="file" accept=".mid,.midi" onChange={handleFile} />
+        <label style={{ fontSize: 13, color: '#94a3b8' }}>
+          Bass ceiling:{' '}
+          <select
+            value={bassMax}
+            onChange={e => setBassMax(Number(e.target.value))}
+            style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 6, padding: '4px 8px', fontFamily: 'monospace', fontSize: 13 }}
+          >
+            <option value={57}>A3</option>
+            <option value={59}>B3 (default)</option>
+            <option value={60}>C4</option>
+            <option value={61}>C#4</option>
+            <option value={62}>D4</option>
+            <option value={64}>E4</option>
+          </select>
+        </label>
+      </div>
 
       {isLoading && (
         <p style={{ color: '#facc15', marginTop: 12 }}>Analyzing fingering & loading guitar sounds...</p>

@@ -26,8 +26,8 @@ function groupRawNotesByTime(rawNotes, threshold = 0.25) {
   return groups
 }
 
-function bassAnchorFret(groupNotes, capoFret) {
-  const bassNotes = groupNotes.filter(n => n.midi < 60)
+function bassAnchorFret(groupNotes, capoFret, bassMax) {
+  const bassNotes = groupNotes.filter(n => n.midi <= bassMax)
   if (bassNotes.length === 0) return null
   const lowest = [...bassNotes].sort((a, b) => a.midi - b.midi)[0]
   const opts = getNoteOptions(lowest.midi, capoFret).filter(o => ['E', 'A', 'D'].includes(o.string))
@@ -45,9 +45,9 @@ function findBestAnchor(frets) {
   return best
 }
 
-function computeAnchors(rawGroups, capoFret) {
+function computeAnchors(rawGroups, capoFret, bassMax) {
   const LOOKAHEAD = 4
-  const requiredFrets = rawGroups.map(g => bassAnchorFret(g.notes, capoFret))
+  const requiredFrets = rawGroups.map(g => bassAnchorFret(g.notes, capoFret, bassMax))
 
   let anchor = requiredFrets.find(f => f !== null) ?? capoFret
   return requiredFrets.map((req, i) => {
@@ -62,20 +62,20 @@ function computeAnchors(rawGroups, capoFret) {
   })
 }
 
-function assignGroupFingers(groupNotes, anchor, capoFret) {
+function assignGroupFingers(groupNotes, anchor, capoFret, bassMax) {
   const occupiedFingers = new Set()
   const usedStrings = new Set()
   const result = []
 
   const sorted = [...groupNotes].sort((a, b) => {
-    const roleA = a.midi < 60 ? 0 : 1
-    const roleB = b.midi < 60 ? 0 : 1
+    const roleA = a.midi <= bassMax ? 0 : 1
+    const roleB = b.midi <= bassMax ? 0 : 1
     if (roleA !== roleB) return roleA - roleB
     return a.midi - b.midi
   })
 
   for (const note of sorted) {
-    const isBass = note.midi < 60
+    const isBass = note.midi <= bassMax
     const preferStrings = isBass ? ['E', 'A', 'D'] : ['e', 'B', 'G', 'D']
 
     let options = getNoteOptions(note.midi, capoFret)
@@ -122,11 +122,11 @@ function assignGroupFingers(groupNotes, anchor, capoFret) {
   return result
 }
 
-export function generateFingerstyleAnchorSolution(rawNotes) {
+export function generateFingerstyleAnchorSolution(rawNotes, bassMax = 59) {
   const capoFret = 0
 
   const rawGroups = groupRawNotesByTime(rawNotes)
-  const anchors = computeAnchors(rawGroups, capoFret)
+  const anchors = computeAnchors(rawGroups, capoFret, bassMax)
 
   let shifts = 0
   for (let i = 1; i < anchors.length; i++) {
@@ -138,7 +138,7 @@ export function generateFingerstyleAnchorSolution(rawNotes) {
 
   const groups = rawGroups.map((group, i) => ({
     time: group.time,
-    notes: assignGroupFingers(group.notes, anchors[i], capoFret),
+    notes: assignGroupFingers(group.notes, anchors[i], capoFret, bassMax),
   }))
 
   const tabNotes = groups.flatMap(g => g.notes)
@@ -215,7 +215,7 @@ function solutionLabel(capoFret, handAnchor) {
 const THIN_STRINGS = new Set(['e', 'B', 'G'])
 
 // Like scorePosition but adds a bonus when melody notes land on thin strings
-function scoreThinStringPosition(rawNotes, capoFret, handAnchor) {
+function scoreThinStringPosition(rawNotes, capoFret, handAnchor, bassMax = 59) {
   const absAnchor = capoFret + handAnchor
   let score = 0
   let total = 0
@@ -234,7 +234,7 @@ function scoreThinStringPosition(rawNotes, capoFret, handAnchor) {
     score += 1
 
     // Bonus for melody notes that have a thin string option in the window
-    const isMelody = note.midi >= 60
+    const isMelody = note.midi > bassMax
     if (isMelody && inWindow.some(o => THIN_STRINGS.has(o.string))) {
       score += 0.6
     }
@@ -244,14 +244,14 @@ function scoreThinStringPosition(rawNotes, capoFret, handAnchor) {
   return total > 0 ? score / (total * 1.6) : 0
 }
 
-export function generateThinStringSolution(rawNotes, existingSolutions = []) {
+export function generateThinStringSolution(rawNotes, existingSolutions = [], bassMax = 59) {
   const capoOptions = [0, 1, 2, 3, 4, 5, 6, 7]
   const anchorOptions = [0, 1, 2, 3, 4, 5]
 
   const candidates = []
   for (const capo of capoOptions) {
     for (const anchor of anchorOptions) {
-      const score = scoreThinStringPosition(rawNotes, capo, anchor)
+      const score = scoreThinStringPosition(rawNotes, capo, anchor, bassMax)
       candidates.push({ capoFret: capo, handAnchor: anchor, score })
     }
   }
@@ -265,7 +265,7 @@ export function generateThinStringSolution(rawNotes, existingSolutions = []) {
     )
   ) ?? candidates[0]
 
-  const tabNotes = convertToTab(rawNotes, best.capoFret, best.handAnchor, true)
+  const tabNotes = convertToTab(rawNotes, best.capoFret, best.handAnchor, true, bassMax)
   const groups = groupNotesByTime(tabNotes)
 
   const label = best.capoFret > 0
@@ -286,7 +286,7 @@ export function generateThinStringSolution(rawNotes, existingSolutions = []) {
 
 // Idea 1: try all (capo, anchor) combos, return top 3 diverse solutions
 // Each solution includes pre-built groups ready for the visualizer
-export function generateSolutions(rawNotes, count = 3) {
+export function generateSolutions(rawNotes, count = 3, bassMax = 59) {
   const capoOptions = [0, 1, 2, 3, 4, 5, 6, 7]
   const anchorOptions = [0, 1, 2, 3, 4, 5]
 
@@ -313,7 +313,7 @@ export function generateSolutions(rawNotes, count = 3) {
 
   // Build full tab data for each picked solution
   return picked.map((sol, i) => {
-    const tabNotes = convertToTab(rawNotes, sol.capoFret, sol.handAnchor)
+    const tabNotes = convertToTab(rawNotes, sol.capoFret, sol.handAnchor, false, bassMax)
     const groups = groupNotesByTime(tabNotes)
     return {
       id: i,
