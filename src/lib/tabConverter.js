@@ -73,7 +73,7 @@ export function convertToTab(notes, capoFret = 0, handAnchor = 0, thinStringBias
       ...note,
       string: picked.string,
       fret: picked.fret,
-      finger: note.role === 'bass' ? 'thumb' : assignFinger(picked.fret, handPosition),
+      finger: assignFinger(picked.fret, handPosition),
     })
   }
 

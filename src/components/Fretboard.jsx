@@ -1,6 +1,5 @@
 const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E']
 const FINGER_COLORS = {
-  thumb: '#F59E0B',
   index: '#3B82F6',
   middle: '#22C55E',
   ring: '#A855F7',
@@ -124,8 +123,7 @@ export default function Fretboard({ activeNotes = [], capoFret = 0, showHand = f
           <g key={i}>
             <circle cx={cx} cy={cy} r={16} fill={FINGER_COLORS[note.finger] || '#fff'} opacity={0.9} />
             <text x={cx} y={cy + 5} fill="#fff" fontSize={11} textAnchor="middle" fontWeight="bold">
-              {note.finger === 'thumb' ? 'T' : note.finger === 'index' ? '1' :
-               note.finger === 'middle' ? '2' : note.finger === 'ring' ? '3' : '4'}
+              {note.finger === 'index' ? '1' : note.finger === 'middle' ? '2' : note.finger === 'ring' ? '3' : '4'}
             </text>
           </g>
         )
