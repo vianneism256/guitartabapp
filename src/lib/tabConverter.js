@@ -125,3 +125,59 @@ function assignFinger(fret, anchor) {
   if (offset === 2) return 'ring'
   return 'pinky'
 }
+
+export function exportToAsciiTab(solution) {
+  const { groups, label, score, capoFret, isTrebleFocus, isFingerstyleAnchor } = solution
+  const strings = ['e', 'B', 'G', 'D', 'A', 'E']
+
+  const title = isFingerstyleAnchor ? 'Fingerstyle Anchor' : isTrebleFocus ? 'Treble Focus' : label
+  const lines = [
+    title,
+    `Score: ${score}%  |  ${capoFret > 0 ? `Capo fret ${capoFret}` : 'No capo'}`,
+    '',
+  ]
+
+  const maxFret = Math.max(0, ...groups.flatMap(g => g.notes.map(n => n.fret)))
+  const colWidth = maxFret >= 10 ? 3 : 2
+  const BEATS_PER_LINE = 8
+
+  for (let start = 0; start < groups.length; start += BEATS_PER_LINE) {
+    const chunk = groups.slice(start, start + BEATS_PER_LINE)
+    for (const s of strings) {
+      let row = `${s}|`
+      for (const group of chunk) {
+        const note = group.notes.find(n => n.string === s)
+        row += note !== undefined
+          ? String(note.fret).padEnd(colWidth, '-')
+          : '-'.repeat(colWidth)
+      }
+      row += '|'
+      lines.push(row)
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}
+
+export function exportToBeatList(solution) {
+  const { groups, label, score, capoFret, isTrebleFocus, isFingerstyleAnchor } = solution
+
+  const title = isFingerstyleAnchor ? 'Fingerstyle Anchor' : isTrebleFocus ? 'Treble Focus' : label
+  const lines = [
+    title,
+    `Score: ${score}%  |  ${capoFret > 0 ? `Capo fret ${capoFret}` : 'No capo'}`,
+    '',
+  ]
+
+  groups.forEach((group, i) => {
+    lines.push(`Beat ${i + 1}  (${group.time.toFixed(2)}s)`)
+    for (const note of group.notes) {
+      const noteLabel = (note.name || '?').padEnd(4)
+      lines.push(`  ${noteLabel} --  ${note.string} string, fret ${note.fret}, ${note.finger}`)
+    }
+    lines.push('')
+  })
+
+  return lines.join('\n')
+}

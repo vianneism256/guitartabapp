@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { parseMidi } from '../lib/midiParser'
 import { generateSolutions, generateThinStringSolution, generateFingerstyleAnchorSolution } from '../lib/fingeringEngine'
+import { exportToAsciiTab, exportToBeatList } from '../lib/tabConverter'
 import { loadInstrument, scheduleNotes, stopAll, getCurrentTime } from '../lib/guitarPlayer'
 import Fretboard from './Fretboard'
 
@@ -112,6 +113,22 @@ export default function MidiUploader() {
     setCurrentIndex(i => Math.min(groupsRef.current.length - 1, i + 1))
   }
 
+  function downloadTxt(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function solutionSlug(s, i) {
+    if (s.isFingerstyleAnchor) return 'fingerstyle'
+    if (s.isTrebleFocus) return 'treble-focus'
+    return `option-${i + 1}`
+  }
+
   const sol = solutions[activeSolution]
   const currentGroup = sol?.groups[currentIndex]
 
@@ -148,40 +165,75 @@ export default function MidiUploader() {
           {/* Solution selector cards */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
             {solutions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => handleSelectSolution(i)}
-                style={{
-                  background: activeSolution === i
-                    ? (s.isFingerstyleAnchor ? '#065f46' : s.isTrebleFocus ? '#7c3aed' : '#2563eb')
-                    : '#1e293b',
-                  border: activeSolution === i
-                    ? `2px solid ${s.isFingerstyleAnchor ? '#34d399' : s.isTrebleFocus ? '#c084fc' : '#60a5fa'}`
-                    : `2px solid ${s.isFingerstyleAnchor ? '#064e3b' : s.isTrebleFocus ? '#6d28d9' : '#334155'}`,
-                  borderRadius: 10,
-                  padding: '12px 18px',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
-                  minWidth: 160,
-                }}
-              >
-                <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>
-                  {s.isFingerstyleAnchor ? '◆ Fingerstyle' : s.isTrebleFocus ? '✦ Treble Focus' : `Option ${i + 1}`}
-                </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
-                  {s.label}
-                </div>
-                <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 'bold' }}>
-                  {s.score}% {s.isFingerstyleAnchor ? 'no-shift' : 'reachable'}
-                </div>
-                {s.capoFret > 0 && (
-                  <div style={{ fontSize: 11, color: '#facc15', marginTop: 4 }}>
-                    Capo fret {s.capoFret}
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  onClick={() => handleSelectSolution(i)}
+                  style={{
+                    background: activeSolution === i
+                      ? (s.isFingerstyleAnchor ? '#065f46' : s.isTrebleFocus ? '#7c3aed' : '#2563eb')
+                      : '#1e293b',
+                    border: activeSolution === i
+                      ? `2px solid ${s.isFingerstyleAnchor ? '#34d399' : s.isTrebleFocus ? '#c084fc' : '#60a5fa'}`
+                      : `2px solid ${s.isFingerstyleAnchor ? '#064e3b' : s.isTrebleFocus ? '#6d28d9' : '#334155'}`,
+                    borderRadius: 10,
+                    padding: '12px 18px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: 'monospace',
+                    minWidth: 160,
+                  }}
+                >
+                  <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>
+                    {s.isFingerstyleAnchor ? '◆ Fingerstyle' : s.isTrebleFocus ? '✦ Treble Focus' : `Option ${i + 1}`}
                   </div>
-                )}
-              </button>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
+                    {s.label}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 'bold' }}>
+                    {s.score}% {s.isFingerstyleAnchor ? 'no-shift' : 'reachable'}
+                  </div>
+                  {s.capoFret > 0 && (
+                    <div style={{ fontSize: 11, color: '#facc15', marginTop: 4 }}>
+                      Capo fret {s.capoFret}
+                    </div>
+                  )}
+                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => downloadTxt(exportToAsciiTab(s), `${solutionSlug(s, i)}-tab.txt`)}
+                    style={{
+                      flex: 1,
+                      background: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: 6,
+                      color: '#94a3b8',
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      padding: '4px 0',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ↓ Tab
+                  </button>
+                  <button
+                    onClick={() => downloadTxt(exportToBeatList(s), `${solutionSlug(s, i)}-beats.txt`)}
+                    style={{
+                      flex: 1,
+                      background: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: 6,
+                      color: '#94a3b8',
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      padding: '4px 0',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ↓ Beats
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
 
